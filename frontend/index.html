@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CKD Risk Estimator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 0;
+      color: #222;
+    }
+    header {
+      background: #375a7f;
+      color: #fff;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      align-items: center;
+    }
+    header h1 {
+      margin: 0;
+      text-align: center;
+    }
+    .api-links {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.75rem;
+    }
+    .api-link {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 999px;
+      padding: 0.4rem 1rem;
+      color: #fff;
+      text-decoration: none;
+      font-size: 0.95rem;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .api-link:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+    }
+    main {
+      max-width: 960px;
+      margin: 2rem auto;
+      background: #fff;
+      padding: 2rem;
+      border-radius: 12px;
+      box-shadow: 0 20px 45px -25px rgba(0, 0, 0, 0.4);
+    }
+    form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    label {
+      font-weight: 600;
+      display: block;
+      margin-bottom: 0.35rem;
+    }
+    input {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #d0d7de;
+      border-radius: 8px;
+      font-size: 0.95rem;
+    }
+    input:focus {
+      outline: none;
+      border-color: #375a7f;
+      box-shadow: 0 0 0 3px rgba(55, 90, 127, 0.25);
+    }
+    button {
+      grid-column: 1 / -1;
+      padding: 0.9rem 1.2rem;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      background: linear-gradient(135deg, #375a7f, #4a89dc);
+      color: #fff;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 15px 30px -20px rgba(55, 90, 127, 0.6);
+    }
+    .result, .error {
+      padding: 1rem;
+      border-radius: 10px;
+      font-size: 1.05rem;
+      line-height: 1.5;
+    }
+    .result {
+      background: rgba(67, 160, 71, 0.1);
+      border: 1px solid rgba(67, 160, 71, 0.3);
+      color: #2b7a2d;
+    }
+    .error {
+      background: rgba(229, 57, 53, 0.1);
+      border: 1px solid rgba(229, 57, 53, 0.3);
+      color: #b71c1c;
+    }
+    .grid-two {
+      display: grid;
+      gap: 1.2rem;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .hint {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.85rem;
+      color: #6c757d;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      font-size: 0.95rem;
+    }
+    th, td {
+      border: 1px solid #d0d7de;
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+    }
+    th {
+      background: #375a7f;
+      color: #fff;
+      font-weight: 600;
+    }
+    tbody tr:nth-child(even) {
+      background: #f7f9fb;
+    }
+    .metadata {
+      margin-top: 1.5rem;
+      padding: 1rem;
+      border-radius: 10px;
+      border: 1px solid #d0d7de;
+      background: #fafcfe;
+    }
+    .metadata h3 {
+      margin-top: 0;
+    }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      color: #6c757d;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Chronic Kidney Disease Probability Estimator</h1>
+    <p>Submit a few markers to estimate CKD probability with the trained XGBoost pipeline.</p>
+    <nav class="api-links">
+      <a class="api-link" href="http://127.0.0.1:8000/" target="_blank" rel="noopener">GET /</a>
+      <a class="api-link" href="http://127.0.0.1:8000/health" target="_blank" rel="noopener">GET /health</a>
+      <a class="api-link" href="http://127.0.0.1:8000/schema" target="_blank" rel="noopener">GET /schema</a>
+      <a class="api-link" href="http://127.0.0.1:8000/predict" target="_blank" rel="noopener">POST /predict</a>
+      <a class="api-link" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener">Swagger Docs</a>
+    </nav>
+  </header>
+  <main>
+    <section>
+      <h2>Predict CKD Probability</h2>
+      <p>Only <strong>Age</strong>, <strong>Blood Glucose (Random)</strong>, and <strong>White Blood Cell Count</strong> are required. Remaining features are auto-filled using training medians.</p>
+      <form id="prediction-form">
+        <div class="grid-two">
+          <div>
+            <label for="age">Age (years)</label>
+            <input type="number" id="age" name="age" min="0" step="1" placeholder="e.g., 45" />
+            <small class="hint">Leave blank to auto-fill with the training median (≈ 47 years).</small>
+          </div>
+          <div>
+            <label for="bgr">Blood Glucose Random (mg/dL)</label>
+            <input type="number" id="bgr" name="bgr" step="0.1" placeholder="e.g., 118.0" />
+            <small class="hint">Typical fasting range is 70-130 mg/dL. Blank uses the training median.</small>
+          </div>
+          <div>
+            <label for="wbcc">White Blood Cell Count (cells/µL)</label>
+            <input type="number" id="wbcc" name="wbcc" step="1" placeholder="e.g., 8200" />
+            <small class="hint">Healthy range is roughly 4,000-11,000 cells/µL. Leave blank for auto-fill.</small>
+          </div>
+        </div>
+        <button type="submit">Predict CKD Risk</button>
+      </form>
+      <section id="feedback"></section>
+    </section>
+
+    <section class="metadata">
+      <h3>Accepted Input Aliases</h3>
+      <p>Mirrors the FastAPI <code>/schema</code> response so you can craft identical JSON payloads.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Alias</th>
+            <th>Full Name</th>
+            <th>Dataset Feature</th>
+          </tr>
+        </thead>
+        <tbody id="alias-table"></tbody>
+      </table>
+    </section>
+
+    <section class="metadata">
+      <h3>Auto-Filled Feature Snapshot</h3>
+      <p>After each prediction, inspect the feature values filled automatically by the pipeline.</p>
+      <div id="autofill-summary">Run a prediction to reveal the auto-filled features.</div>
+    </section>
+  </main>
+  <footer>
+    <p>Ensure the backend API is running locally at <code>http://127.0.0.1:8000</code>.</p>
+  </footer>
+
+  <script>
+    const form = document.getElementById('prediction-form');
+    const feedback = document.getElementById('feedback');
+    const aliasTable = document.getElementById('alias-table');
+    const autofillSummary = document.getElementById('autofill-summary');
+    const API_BASE = 'http://127.0.0.1:8000';
+
+    async function loadSchema() {
+      try {
+        const response = await fetch(`${API_BASE}/schema`);
+        if (!response.ok) {
+          throw new Error(`Schema request failed with status ${response.status}`);
+        }
+        const data = await response.json();
+        renderAliasTable(data.accepted_inputs || []);
+      } catch (error) {
+        aliasTable.innerHTML = `<tr><td colspan="3" class="error">Failed to load schema: ${error.message}</td></tr>`;
+      }
+    }
+
+    function renderAliasTable(inputs) {
+      if (!inputs.length) {
+        aliasTable.innerHTML = '<tr><td colspan="3">No accepted inputs returned from API.</td></tr>';
+        return;
+      }
+
+      aliasTable.innerHTML = inputs.map((input) => `
+        <tr>
+          <td><code>${input.alias}</code></td>
+          <td>${input.feature}</td>
+          <td>${input.full_name}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderAutofillTable(autoMap) {
+      if (!autoMap || !Object.keys(autoMap).length) {
+        autofillSummary.innerHTML = 'No auto-filled features for this request.';
+        return;
+      }
+
+      const rows = Object.entries(autoMap)
+        .map(([feature, value]) => `
+          <tr>
+            <td>${feature}</td>
+            <td>${Number(value).toFixed(2)}</td>
+          </tr>
+        `)
+        .join('');
+
+      autofillSummary.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>Value Used</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      `;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      feedback.innerHTML = '';
+      autofillSummary.innerHTML = 'Processing…';
+
+      const formData = new FormData(form);
+      const payload = {};
+      formData.forEach((value, key) => {
+        payload[key] = value === '' ? null : Number(value);
+      });
+
+      try {
+        const response = await fetch(`${API_BASE}/predict`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          const detail = result.detail || result.error || 'Prediction failed';
+          throw new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
+        }
+
+        feedback.innerHTML = `
+          <div class="result">
+            <p><strong>CKD Probability:</strong> ${(result.probability_ckd * 100).toFixed(2)}%</p>
+            <p><strong>Prediction:</strong> ${result.prediction === 1 ? 'Likely CKD' : 'Likely Not CKD'}</p>
+            <p><strong>Decision Threshold:</strong> ${result.threshold}</p>
+          </div>
+        `;
+
+        renderAutofillTable(result.autofilled_features || {});
+      } catch (error) {
+        feedback.innerHTML = `<div class="error">${error.message}</div>`;
+        autofillSummary.innerHTML = 'Unable to display auto-filled features.';
+      }
+    });
+
+    loadSchema();
+  </script>
+</body>
+</html>
