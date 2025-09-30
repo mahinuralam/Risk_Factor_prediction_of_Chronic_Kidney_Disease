@@ -48,5 +48,5 @@ curl -X POST http://127.0.0.1:8000/predict \
 
 ## Screenshot
 
-<!-- Replace with actual screenshot once available -->
-![Main UI Screenshot](docs/screenshot.png)
+<img width="1204" height="857" alt="image" src="https://github.com/user-attachments/assets/29fa5d19-ca4c-451b-aa1b-77e8d3e2acaf" />
+
