@@ -7,10 +7,13 @@ import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import RootModel
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 MODEL_PATH = BASE_DIR / "models" / "ckd_xgb_pipeline.joblib"
+FRONTEND_DIR = BASE_DIR / "frontend"
 
 if not MODEL_PATH.exists():
     raise FileNotFoundError(
@@ -58,6 +61,10 @@ INPUT_FEATURE_ALIASES = {
     "age": {"feature": "age", "label": "Age"},
     "bgr": {"feature": "bgr", "label": "Blood Glucose (Random)"},
     "wbcc": {"feature": "wbcc", "label": "White Blood Cell Count"},
+    "hemo": {"feature": "hemo", "label": "Hemoglobin"},
+    "sg": {"feature": "sg", "label": "Specific Gravity"},
+    "grf": {"feature": "grf", "label": "Glomerular Filtration Rate"},
+    "affected": {"feature": "affected", "label": "Affected Kidney Indicator"},
 }
 
 for alias, info in INPUT_FEATURE_ALIASES.items():
@@ -87,14 +94,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"]
 )
-@app.get("/")
-def root() -> Dict[str, object]:
-    return {
-        "message": "CKD Risk API is running",
-        "endpoints": ["/health", "/schema", "/predict"],
-        "docs": "/docs",
-        "inputs": INPUT_FEATURE_DETAILS
-    }
+
+if FRONTEND_DIR.exists():
+    app.mount("/app", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
+@app.get("/", include_in_schema=False)
+def root() -> RedirectResponse:
+    return RedirectResponse(url="/app/", status_code=307)
 
 
 @app.get("/health")

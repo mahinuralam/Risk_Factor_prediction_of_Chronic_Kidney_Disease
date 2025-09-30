@@ -25,26 +25,6 @@
       margin: 0;
       text-align: center;
     }
-    .api-links {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 0.75rem;
-    }
-    .api-link {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: 999px;
-      padding: 0.4rem 1rem;
-      color: #fff;
-      text-decoration: none;
-      font-size: 0.95rem;
-      transition: background 0.15s ease, transform 0.15s ease;
-    }
-    .api-link:hover {
-      background: rgba(255, 255, 255, 0.25);
-      transform: translateY(-1px);
-    }
     main {
       max-width: 960px;
       margin: 2rem auto;
@@ -64,14 +44,16 @@
       display: block;
       margin-bottom: 0.35rem;
     }
-    input {
+    input,
+    select {
       width: 100%;
       padding: 0.6rem 0.75rem;
       border: 1px solid #d0d7de;
       border-radius: 8px;
       font-size: 0.95rem;
     }
-    input:focus {
+    input:focus,
+    select:focus {
       outline: none;
       border-color: #375a7f;
       box-shadow: 0 0 0 3px rgba(55, 90, 127, 0.25);
@@ -159,34 +141,51 @@
   <header>
     <h1>Chronic Kidney Disease Probability Estimator</h1>
     <p>Submit a few markers to estimate CKD probability with the trained XGBoost pipeline.</p>
-    <nav class="api-links">
-      <a class="api-link" href="http://127.0.0.1:8000/" target="_blank" rel="noopener">GET /</a>
-      <a class="api-link" href="http://127.0.0.1:8000/health" target="_blank" rel="noopener">GET /health</a>
-      <a class="api-link" href="http://127.0.0.1:8000/schema" target="_blank" rel="noopener">GET /schema</a>
-      <a class="api-link" href="http://127.0.0.1:8000/predict" target="_blank" rel="noopener">POST /predict</a>
-      <a class="api-link" href="http://127.0.0.1:8000/docs" target="_blank" rel="noopener">Swagger Docs</a>
-    </nav>
   </header>
   <main>
     <section>
       <h2>Predict CKD Probability</h2>
-      <p>Only <strong>Age</strong>, <strong>Blood Glucose (Random)</strong>, and <strong>White Blood Cell Count</strong> are required. Remaining features are auto-filled using training medians.</p>
+  <p>Only <strong>Age</strong>, <strong>Blood Glucose (Random)</strong>, and <strong>White Blood Cell Count</strong> are required. You can optionally override the auto-filled medians by supplying <strong>Hemoglobin</strong>, <strong>Specific Gravity</strong>, <strong>Glomerular Filtration Rate</strong>, or the <strong>Affected Kidney indicator</strong>.</p>
       <form id="prediction-form">
         <div class="grid-two">
           <div>
             <label for="age">Age (years)</label>
             <input type="number" id="age" name="age" min="0" step="1" placeholder="e.g., 45" />
-            <small class="hint">Leave blank to auto-fill with the training median (≈ 47 years).</small>
+            <small class="hint">Leave blank to auto-fill using the training median age.</small>
           </div>
           <div>
             <label for="bgr">Blood Glucose Random (mg/dL)</label>
             <input type="number" id="bgr" name="bgr" step="0.1" placeholder="e.g., 118.0" />
-            <small class="hint">Typical fasting range is 70-130 mg/dL. Blank uses the training median.</small>
+            <small class="hint">Typical fasting range is 70-130 mg/dL. Leave blank to use the training median.</small>
           </div>
           <div>
             <label for="wbcc">White Blood Cell Count (cells/µL)</label>
             <input type="number" id="wbcc" name="wbcc" step="1" placeholder="e.g., 8200" />
-            <small class="hint">Healthy range is roughly 4,000-11,000 cells/µL. Leave blank for auto-fill.</small>
+            <small class="hint">Healthy range is roughly 4,000-11,000 cells/µL. Leave blank to auto-fill.</small>
+          </div>
+          <div>
+            <label for="hemo">Hemoglobin (g/dL)</label>
+            <input type="number" id="hemo" name="hemo" step="0.1" placeholder="e.g., 12.5" />
+            <small class="hint">Adults commonly fall between 12-16 g/dL. Blank applies the training median.</small>
+          </div>
+          <div>
+            <label for="sg">Specific Gravity</label>
+            <input type="number" id="sg" name="sg" step="0.001" placeholder="e.g., 1.020" />
+            <small class="hint">Healthy urine specific gravity is ~1.005-1.030. Leave blank to auto-fill.</small>
+          </div>
+          <div>
+            <label for="grf">Glomerular Filtration Rate (mL/min)</label>
+            <input type="number" id="grf" name="grf" step="0.1" placeholder="e.g., 90" />
+            <small class="hint">Values &gt;90 mL/min are generally normal. Blank uses the training median.</small>
+          </div>
+          <div>
+            <label for="affected">Affected Kidney Indicator</label>
+            <select id="affected" name="affected">
+              <option value="">Auto-fill from training data</option>
+              <option value="0">0 – Not affected</option>
+              <option value="1">1 – Affected</option>
+            </select>
+            <small class="hint">Select 0 or 1 to override. Leave blank to auto-fill.</small>
           </div>
         </div>
         <button type="submit">Predict CKD Risk</button>
@@ -247,9 +246,9 @@
 
       aliasTable.innerHTML = inputs.map((input) => `
         <tr>
-          <td><code>${input.alias}</code></td>
-          <td>${input.feature}</td>
+          <td><code>${input.alias.toUpperCase()}</code></td>
           <td>${input.full_name}</td>
+          <td><code>${input.feature}</code></td>
         </tr>
       `).join('');
     }
@@ -292,7 +291,21 @@
       const formData = new FormData(form);
       const payload = {};
       formData.forEach((value, key) => {
-        payload[key] = value === '' ? null : Number(value);
+        if (value === undefined || value === null) {
+          return;
+        }
+
+        const trimmed = String(value).trim();
+        if (trimmed === '') {
+          return; // leave field for auto-fill
+        }
+
+        const numericValue = Number(trimmed);
+        if (Number.isNaN(numericValue)) {
+          return;
+        }
+
+        payload[key] = numericValue;
       });
 
       try {
@@ -313,9 +326,8 @@
 
         feedback.innerHTML = `
           <div class="result">
-            <p><strong>CKD Probability:</strong> ${(result.probability_ckd * 100).toFixed(2)}%</p>
-            <p><strong>Prediction:</strong> ${result.prediction === 1 ? 'Likely CKD' : 'Likely Not CKD'}</p>
-            <p><strong>Decision Threshold:</strong> ${result.threshold}</p>
+            <p><strong>Chronic Kidney Disease Probability:</strong> ${(result.probability_ckd * 100).toFixed(2)}%</p>
+            <p><strong>Prediction:</strong> ${result.prediction === 1 ? 'Likely CKD' : 'Likely Not Chronic Kidney Disease'}</p>
           </div>
         `;
 
